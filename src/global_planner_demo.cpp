@@ -45,6 +45,7 @@ boost::shared_ptr<MoveBaseClient> action_client_ptr;
 
 // April tag subscriber
 ros::Subscriber sub;
+ros::Publisher cmd_pub;
 
 // State Machine for Fall Demo #2
 enum State { SAFE, SEARCH_A, SEARCH_B, SEARCH_C, SEARCH_D, SEARCH_E, APPROACH_TRASH, DUMP_TRASH, END};
@@ -202,22 +203,29 @@ void transition(State state, ros::NodeHandle &n) {
       action_client_ptr->sendGoal(goal);
       ROS_INFO("GOAL SENT");
     }
+    std_msgs::Int32 cmd_msg;
+    cmd_msg.data = command_value;
+    cmd_pub.publish(cmd_msg);
   }
 }
 
 void commandCallback(const std_msgs::Int32::ConstPtr& msg) {
-  command_value = msg->data;
-  ROS_INFO("Received command %d", command_value);
+  if (command_value != msg->data)
+  {
+    command_value = msg->data;
+    ROS_INFO("Received command %d", command_value);
+  }
 }
 
 int main(int argc, char** argv){
-  
   // ROS Node Initialization
   ros::init(argc, argv, "global_planner");
   ros::NodeHandle n;
 
   // Subscribe to command node
   ros::Subscriber cmd_sub = n.subscribe("cmd_state", 10, commandCallback);
+  // Publisher to send current state to the rest of the world when transition happens
+  cmd_pub = n.advertise<std_msgs::Int32>("cmd_state", 10);
 
   action_client_ptr.reset( new MoveBaseClient("move_base", true) );
 
@@ -230,7 +238,7 @@ int main(int argc, char** argv){
   }
 
   
-  ROS_INFO("Starting global planner.");
+  ROS_INFO("Starting global planner");
 
   while(ros::ok()){
     if (command_value == 0) {
@@ -273,8 +281,8 @@ int main(int argc, char** argv){
       }
       break;
 
-      case SEARCH_A:
       ROS_INFO("Status : %s", action_client_ptr->getState().toString().c_str());
+      case SEARCH_A:
       if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
           command_value == 2) {
         transition(SEARCH_B, n);
@@ -282,7 +290,6 @@ int main(int argc, char** argv){
       break;
 
       case SEARCH_B:
-      ROS_INFO("Status : %s", action_client_ptr->getState().toString().c_str());
       if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
           command_value == 3) {
         transition(SEARCH_C, n);
@@ -290,7 +297,6 @@ int main(int argc, char** argv){
       break;
 
       case SEARCH_C:
-      ROS_INFO("Status : %s", action_client_ptr->getState().toString().c_str());
       if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
           command_value == 4) {
         transition(SEARCH_D, n);
@@ -298,7 +304,6 @@ int main(int argc, char** argv){
       break;
 
       case SEARCH_D:
-      ROS_INFO("Status : %s", action_client_ptr->getState().toString().c_str());
       if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
           command_value == 5) {
         transition(SEARCH_E, n);
@@ -306,7 +311,6 @@ int main(int argc, char** argv){
       break;
 
       case SEARCH_E:
-      ROS_INFO("Status : %s", action_client_ptr->getState().toString().c_str());
       if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
           command_value == 6) {
         transition(DUMP_TRASH, n);
@@ -339,6 +343,5 @@ int main(int argc, char** argv){
     ros::spinOnce();
 
     r.sleep();
-
   }
 }
