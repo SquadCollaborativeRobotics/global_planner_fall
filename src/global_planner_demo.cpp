@@ -48,8 +48,21 @@ ros::Subscriber sub;
 ros::Publisher cmd_pub;
 
 // State Machine for Fall Demo #2
-enum State { SAFE, SEARCH_A, SEARCH_B, SEARCH_C, SEARCH_D, SEARCH_E, APPROACH_TRASH, DUMP_TRASH, END};
+enum State {
+  SAFE = 0,
+  SEARCH_A = 1,
+  SEARCH_B = 2,
+  SEARCH_C = 3,
+  SEARCH_D = 4,
+  SEARCH_E = 5,
+  APPROACH_TRASH = 6,
+  DUMP_TRASH = 7,
+  END = 8,
+  PAUSE = 99,
+  RESUME = 100
+};
 State currState = SAFE;
+State state_before_pause = SAFE;
 
 // Command value read from topic, or on transition to SAFE
 int command_value = 0;
@@ -126,8 +139,11 @@ void trashcanTagSearcherCallback(const geometry_msgs::PoseStamped::ConstPtr& msg
 }
 
 void transition(State state, ros::NodeHandle &n) {
+  //Only transition if it's new
   if (currState != state) {
+    State lastState = currState; //used when pausing
     currState = state;
+
     ROS_INFO("-- STATE TRANSITION %d --", currState);
 
     int chosen_search_pose = -1;
@@ -186,13 +202,28 @@ void transition(State state, ros::NodeHandle &n) {
       case END:
       sub.shutdown();
       break;
+
+      case PAUSE:
+      state_before_pause = lastState;
+      action_client_ptr->cancelAllGoals(); // Cancel any current move goals
+      sub.shutdown();
+      break;
+
+      case RESUME:
+      ROS_ERROR("Interesting... we are trying to transition to 'resume'. weird");
+      break;
     }
 
+    std_msgs::Int32 cmd_msg;
+    cmd_msg.data = currState;
+    cmd_pub.publish(cmd_msg);
+    ROS_INFO_STREAM("Sent command state: "<<cmd_msg.data);
+    
     // If searching
     if (chosen_search_pose >= 0) {
       // Subscribe to trashcan searcher
       sub = n.subscribe("apriltags", 1000, trashcanTagSearcherCallback);
-      
+
       // Set goal to search pose
       move_base_msgs::MoveBaseGoal goal;
       setGoalPose(search_poses[chosen_search_pose], goal);
@@ -203,9 +234,6 @@ void transition(State state, ros::NodeHandle &n) {
       action_client_ptr->sendGoal(goal);
       ROS_INFO("GOAL SENT");
     }
-    std_msgs::Int32 cmd_msg;
-    cmd_msg.data = command_value;
-    cmd_pub.publish(cmd_msg);
   }
 }
 
@@ -230,7 +258,7 @@ int main(int argc, char** argv){
   action_client_ptr.reset( new MoveBaseClient("move_base", true) );
 
   // Create Rate Object for sleeping
-  ros::Rate r(1);
+  ros::Rate r(100);
 
   // Wait for the action server to come up
   while(ros::ok() && !action_client_ptr->waitForServer(ros::Duration(1.0))){
@@ -278,6 +306,11 @@ int main(int argc, char** argv){
         case 8:
         transition(END, n);
         break;
+        case 99:
+        transition(PAUSE, n);
+        break;
+        case 100:
+        transition(RESUME, n);
       }
       break;
 
@@ -334,11 +367,20 @@ int main(int argc, char** argv){
 
       case END:
       break;
+
+      case PAUSE:
+      ROS_INFO_STREAM_THROTTLE(1, "Global planner is paused. Last state = "<<state_before_pause);
+      break;
+
+      case RESUME:
+      ROS_INFO_STREAM_THROTTLE(1, "Resuming plan. Now going to: "<<state_before_pause);
+      transition(state_before_pause, n);
+      return ;
     }
     if (given_start_state && action_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED) {
       transition(SAFE, n);
     }
-    
+
     // Update callbacks after the fact, for next loop iteration.
     ros::spinOnce();
 
