@@ -204,6 +204,7 @@ void transition(State state, ros::NodeHandle &n) {
       break;
 
       case PAUSE:
+      ROS_INFO("PAUSE received... cancel all goals");
       state_before_pause = lastState;
       action_client_ptr->cancelAllGoals(); // Cancel any current move goals
       sub.shutdown();
@@ -277,105 +278,125 @@ int main(int argc, char** argv){
       found_trashcan = false;
       transition(APPROACH_TRASH, n);
     }
+
     // State machine command override from safe to chosen state
     switch(currState) {
       case SAFE:
-      switch (command_value) {
-        case 1:
-        given_start_state = true;
-        transition(SEARCH_A, n);
+        switch (command_value) {
+          case 1:
+          given_start_state = true;
+          transition(SEARCH_A, n);
+          break;
+          case 2:
+          transition(SEARCH_B, n);
+          break;
+          case 3:
+          transition(SEARCH_C, n);
+          break;
+          case 4:
+          transition(SEARCH_D, n);
+          break;
+          case 5:
+          transition(SEARCH_E, n);
+          break;
+          case 6:
+          transition(APPROACH_TRASH, n);
+          break;
+          case 7:
+          transition(DUMP_TRASH, n);
+          break;
+          case 8:
+          transition(END, n);
+          break;
+          case 99:
+          transition(PAUSE, n);
+          break;
+          case 100:
+          transition(RESUME, n);
+        }
         break;
-        case 2:
-        transition(SEARCH_B, n);
-        break;
-        case 3:
-        transition(SEARCH_C, n);
-        break;
-        case 4:
-        transition(SEARCH_D, n);
-        break;
-        case 5:
-        transition(SEARCH_E, n);
-        break;
-        case 6:
-        transition(APPROACH_TRASH, n);
-        break;
-        case 7:
-        transition(DUMP_TRASH, n);
-        break;
-        case 8:
-        transition(END, n);
-        break;
-        case 99:
-        transition(PAUSE, n);
-        break;
-        case 100:
-        transition(RESUME, n);
-      }
-      break;
 
-      ROS_INFO("Status : %s", action_client_ptr->getState().toString().c_str());
+      
       case SEARCH_A:
-      if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
-          command_value == 2) {
-        transition(SEARCH_B, n);
-      }
-      break;
+        ROS_INFO_THROTTLE(2,"command_value = %d, Status : %s", command_value, action_client_ptr->getState().toString().c_str());
+        if (command_value == PAUSE)
+          transition(PAUSE, n);
+        if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
+            command_value == 2) {
+          transition(SEARCH_B, n);
+        }
+        break;
 
       case SEARCH_B:
-      if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
-          command_value == 3) {
-        transition(SEARCH_C, n);
-      }
-      break;
+        ROS_INFO_THROTTLE(2,"command_value = %d, Status : %s", command_value, action_client_ptr->getState().toString().c_str());
+        if (command_value == PAUSE)
+          transition(PAUSE, n);
+        if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
+            command_value == 3) {
+          transition(SEARCH_C, n);
+        }
+        break;
 
       case SEARCH_C:
-      if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
-          command_value == 4) {
-        transition(SEARCH_D, n);
-      }
-      break;
+        ROS_INFO_THROTTLE(2,"command_value = %d, Status : %s", command_value, action_client_ptr->getState().toString().c_str());
+        if (command_value == PAUSE)
+          transition(PAUSE, n);
+        if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
+            command_value == 4) {
+          transition(SEARCH_D, n);
+        }
+        break;
 
       case SEARCH_D:
-      if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
-          command_value == 5) {
-        transition(SEARCH_E, n);
-      }
-      break;
+        ROS_INFO_THROTTLE(2,"command_value = %d, Status : %s", command_value, action_client_ptr->getState().toString().c_str());
+        if (command_value == PAUSE)
+          transition(PAUSE, n);
+        if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
+            command_value == 5) {
+          transition(SEARCH_E, n);
+        }
+        break;
 
       case SEARCH_E:
-      if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
-          command_value == 6) {
-        transition(DUMP_TRASH, n);
-      }
-      break;
+        ROS_INFO_THROTTLE(2,"command_value = %d, Status : %s", command_value, action_client_ptr->getState().toString().c_str());
+        if (command_value == PAUSE)
+          transition(PAUSE, n);
+        if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
+            command_value == 6) {
+          transition(DUMP_TRASH, n);
+        }
+        break;
 
       case APPROACH_TRASH:
-      if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
-          command_value == 7) {
-        transition(DUMP_TRASH, n);
-      }
-      break;
+        ROS_INFO_THROTTLE(2,"command_value = %d, Status : %s", command_value, action_client_ptr->getState().toString().c_str());
+        if (command_value == PAUSE)
+          transition(PAUSE, n);
+        if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
+            command_value == 7) {
+          transition(DUMP_TRASH, n);
+        }
+        break;
 
       // Dump trash means go to the end search_pos 6
       case DUMP_TRASH:
-      if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
-          command_value == 8) {
-        transition(END, n);
-      }
-      break;
+        ROS_INFO_THROTTLE(2,"command_value = %d, Status : %s", command_value, action_client_ptr->getState().toString().c_str());
+        if (command_value == PAUSE)
+          transition(PAUSE, n);
+        if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
+            command_value == 8) {
+          transition(END, n);
+        }
+        break;
 
       case END:
-      break;
+        ROS_INFO_THROTTLE(2,"command_value = %d, Status : %s", command_value, action_client_ptr->getState().toString().c_str());
+        break;
 
       case PAUSE:
-      ROS_INFO_STREAM_THROTTLE(1, "Global planner is paused. Last state = "<<state_before_pause);
-      break;
-
-      case RESUME:
-      ROS_INFO_STREAM_THROTTLE(1, "Resuming plan. Now going to: "<<state_before_pause);
-      transition(state_before_pause, n);
-      return ;
+        if (command_value == RESUME)
+        {
+          transition(state_before_pause,n);
+        }
     }
     if (given_start_state && action_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED) {
       transition(SAFE, n);
