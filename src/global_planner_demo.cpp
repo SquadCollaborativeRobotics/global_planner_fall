@@ -3,6 +3,7 @@
 #include <actionlib/client/simple_action_client.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <boost/thread/mutex.hpp>
+#include <global_planner/GarbageCan.h>
 #include "std_msgs/Int32.h"
 
 // The global planner uses the actionlib to do the following:
@@ -63,6 +64,7 @@ enum State {
 };
 State currState = SAFE;
 State state_before_pause = SAFE;
+ros::Time timeofpause;
 
 // Command value read from topic, or on transition to SAFE
 int command_value = 0;
@@ -98,13 +100,13 @@ void setGoalPose(const search_pose &s,
 }
 
 // Given a trashcan as a PoseStamped messge, returns the goal pose in front of it
-void getGoalPoseFromTrashcan(const geometry_msgs::PoseStamped::ConstPtr& msg,
+void getGoalPoseFromTrashcan(const geometry_msgs::PoseStamped& msg,
                              move_base_msgs::MoveBaseGoal &goal) {
-  double theta = 2 * acos(msg->pose.orientation.w);
-  setGoalPoseRaw(msg->pose.position.x + 0.35*cos(theta),
-                 msg->pose.position.y + 0.35*sin(theta),
-                 msg->pose.orientation.z,
-                 msg->pose.orientation.w,
+  double theta = 2 * acos(msg.pose.orientation.w);
+  setGoalPoseRaw(msg.pose.position.x + 0.35*cos(theta),
+                 msg.pose.position.y + 0.35*sin(theta),
+                 msg.pose.orientation.z,
+                 msg.pose.orientation.w,
                  goal);
   goal.target_pose.header.frame_id = "map";
   goal.target_pose.header.stamp = ros::Time::now();
@@ -113,21 +115,23 @@ void getGoalPoseFromTrashcan(const geometry_msgs::PoseStamped::ConstPtr& msg,
 bool found_trashcan = false;
 
 // Callback for new april tags
-void trashcanTagSearcherCallback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
+void trashcanTagSearcherCallback(const global_planner::GarbageCan::ConstPtr& msg) {
   // ROS_INFO("April Tag Callback!");
 
-  // ROS_INFO("Header : %s", msg->header.frame_id.c_str());
+  geometry_msgs::PoseStamped pose = msg->pose;
+  int can_num = msg->can_num;
+
+   ROS_INFO("Can number: %d", msg->can_num);
 
   // If april tag is id 6 (trashcan)
-  if (msg->header.frame_id.c_str()[0] == '6') {
+  if (can_num == 6) {
     // ROS_INFO("Header Match!");
-    geometry_msgs::PoseStamped goal_pose;
     found_trashcan = true;
 
     move_base_msgs::MoveBaseGoal goal;
     
     // Set goal position to in front of april tag
-    getGoalPoseFromTrashcan(msg, goal);
+    getGoalPoseFromTrashcan(pose, goal);
 
     // http://mirror.umd.edu/roswiki/doc/diamondback/api/actionlib/html/classactionlib_1_1simple__action__client_1_1SimpleActionClient.html#a6bdebdd9f43a470ecd361d2c8b743188
     // If a previous goal is already active when this is called. 
@@ -191,7 +195,7 @@ void transition(State state, ros::NodeHandle &n) {
         setGoalPose(end_pose, goal);
         goal.target_pose.header.frame_id = "map";
         goal.target_pose.header.stamp = ros::Time::now();
-        
+
         // Send goal to action client
         action_client_ptr->sendGoal(goal);
         ROS_INFO("END GOAL SENT");
@@ -206,6 +210,7 @@ void transition(State state, ros::NodeHandle &n) {
       case PAUSE:
       ROS_INFO("PAUSE received... cancel all goals");
       state_before_pause = lastState;
+      timeofpause = ros::Time::now();
       action_client_ptr->cancelAllGoals(); // Cancel any current move goals
       sub.shutdown();
       break;
@@ -219,11 +224,11 @@ void transition(State state, ros::NodeHandle &n) {
     cmd_msg.data = currState;
     cmd_pub.publish(cmd_msg);
     ROS_INFO_STREAM("Sent command state: "<<cmd_msg.data);
-    
+
     // If searching
     if (chosen_search_pose >= 0) {
       // Subscribe to trashcan searcher
-      sub = n.subscribe("apriltags", 1000, trashcanTagSearcherCallback);
+      sub = n.subscribe("garbageCan", 10, trashcanTagSearcherCallback);
 
       // Set goal to search pose
       move_base_msgs::MoveBaseGoal goal;
@@ -394,6 +399,10 @@ int main(int argc, char** argv){
 
       case PAUSE:
         if (command_value == RESUME)
+        {
+          transition(state_before_pause,n);
+        }
+        if (ros::Time::now() - timeofpause > ros::Duration(5))
         {
           transition(state_before_pause,n);
         }
