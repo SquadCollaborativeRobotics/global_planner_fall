@@ -75,7 +75,8 @@ void sound_callback(const global_planner::SoundMsg::ConstPtr& msg) {
     std::string str = msg->filename;
     int numTimes = msg->num_times;
     std::string text_output = msg->text_output;
-    ROS_INFO_STREAM(text_output);
+    if (text_output.length() > 0)
+        ROS_INFO_STREAM(text_output);
     sound_manager.play_sound(str, numTimes);
 }
 

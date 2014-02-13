@@ -201,6 +201,7 @@ void transition(State state, ros::NodeHandle &n) {
       break;
 
       case APPROACH_TRASH:
+      send_sound("approaching_trash");
       sub.shutdown();
       break;
 
