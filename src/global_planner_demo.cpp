@@ -4,6 +4,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <boost/thread/mutex.hpp>
 #include <global_planner/GarbageCan.h>
+#include <global_planner/SoundMsg.h>
 #include "std_msgs/Int32.h"
 #include "std_msgs/String.h"
 
@@ -91,8 +92,10 @@ search_pose end_pose = {0, 0, 0, 1};
 
 void send_sound_num(std::string str, int num_times)
 {
-  std_msgs::String s;
-  s.data = str;
+  global_planner::SoundMsg s;
+  s.filename = str;
+  s.num_times = num_times;
+  s.text_output = std::string();
   sound_pub.publish(s);
   ros::spinOnce();
 }
@@ -120,8 +123,8 @@ void setGoalPose(const search_pose &s,
 void getGoalPoseFromTrashcan(const geometry_msgs::PoseStamped& msg,
                              move_base_msgs::MoveBaseGoal &goal) {
   double theta = 2 * acos(msg.pose.orientation.w);
-  setGoalPoseRaw(msg.pose.position.x + 0.5*cos(theta),
-                 msg.pose.position.y + 0.5*sin(theta),
+  setGoalPoseRaw(msg.pose.position.x - 0.5*cos(theta),
+                 msg.pose.position.y - 0.5*sin(theta),
                  msg.pose.orientation.z,
                  msg.pose.orientation.w,
                  goal);
@@ -280,7 +283,7 @@ int main(int argc, char** argv){
   cmd_pub = n.advertise<std_msgs::Int32>("cmd_state", 10);
 
   // Publisher to send current state to the rest of the world when transition happens
-  sound_pub = n.advertise<std_msgs::String>("play_sound", 10);
+  sound_pub = n.advertise<global_planner::SoundMsg>("play_sound", 10);
   ros::spinOnce();
 
   ROS_INFO_STREAM("Sending test sound");
