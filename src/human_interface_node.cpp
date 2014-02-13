@@ -1,7 +1,7 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 #include <boost/thread.hpp>
-#include "std_msgs/String.h"
+#include "global_planner/SoundMsg.h"
 #include "string.h"
 
 class SoundManager
@@ -10,6 +10,7 @@ public:
     SoundManager()
     {
         is_playing = false;
+        m_stopThread = false;
     };
     ~SoundManager(){};
 
@@ -18,23 +19,34 @@ public:
     //ros::NodeHandle _nh;
 
     // ROS topic callback
-    void sound_thread(std::string str)
+    void sound_thread(std::string str, int numTimes)
     {
         try
         {
-            if (is_playing)
-            {
-                system("killall -9 aplay");
-            }
-
-            is_playing = true;
-
             std::string path_to_sound = std::string("aplay -q ");
             path_to_sound += ros::package::getPath("global_planner");
             path_to_sound += std::string("/resources/sounds/");
             path_to_sound += str;
-            ROS_INFO_STREAM("Playing sound: "<<path_to_sound);
-            system(path_to_sound.c_str());
+
+            //Play the sound for the number of times specified
+            for (int i = 0; i < numTimes; ++i)
+            {
+                if (m_stopThread)
+                {
+                    system("killall -9 aplay");
+                    break;
+                }
+                else
+                {
+                    if (i > 1){
+                        sleep(1.0);
+                    }
+                    ROS_INFO_STREAM("Playing sound: "<<path_to_sound);
+                    is_playing = true;
+                    system(path_to_sound.c_str());
+                    is_playing = false;
+                }
+            }
         }
         catch(boost::thread_interrupted&)
         {
@@ -44,19 +56,27 @@ public:
     };
 
     // Thread function
-    void play_sound(std::string str)
+    void play_sound(std::string str, int numTimes)
     {
-        boost::thread m_soundThread(&SoundManager::sound_thread, this, str);
+        //thread has not yet finished. try killing.
+        m_stopThread = true;
+        system("killall -9 aplay");
+        m_soundThread.join();
+        m_stopThread = false;
+        m_soundThread = boost::thread(&SoundManager::sound_thread, this, str, numTimes);
     };
-
+    bool m_stopThread;
+    boost::thread m_soundThread;
 };
 
 SoundManager sound_manager;
 
-void sound_callback(const std_msgs::String::ConstPtr& msg) {
-    std::string str = msg->data;
-    ROS_INFO_STREAM("Got request to play sound: "<<str);
-    sound_manager.play_sound(str);
+void sound_callback(const global_planner::SoundMsg::ConstPtr& msg) {
+    std::string str = msg->filename;
+    int numTimes = msg->num_times;
+    std::string text_output = msg->text_output;
+    ROS_INFO_STREAM(text_output);
+    sound_manager.play_sound(str, numTimes);
 }
 
 int main(int argc, char** argv){

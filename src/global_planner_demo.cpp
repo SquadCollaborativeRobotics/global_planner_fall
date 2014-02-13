@@ -89,14 +89,19 @@ search_pose search_poses[] = { {1, -0.8, 0, 1},
 // End position
 search_pose end_pose = {0, 0, 0, 1};
 
-void send_sound(std::string str)
+void send_sound_num(std::string str, int num_times)
 {
   std_msgs::String s;
   s.data = str;
-  //ROS_INFO_STREAM("Sending sound: "<< str);
   sound_pub.publish(s);
   ros::spinOnce();
 }
+
+void send_sound(std::string str)
+{
+  send_sound_num(str, 1);
+}
+
 
 // Sets given goal to given x,y and rotation quat rz,rw
 void setGoalPoseRaw(double x, double y, double rz, double rw, 
@@ -109,12 +114,6 @@ void setGoalPoseRaw(double x, double y, double rz, double rw,
 void setGoalPose(const search_pose &s, 
                  move_base_msgs::MoveBaseGoal &goal) {
   setGoalPoseRaw(s.x, s.y, s.rz, s.rw, goal);
-}
-
-void pauseRobot()
-{
-  move_base_msgs::MoveBaseGoal goal;
-  //action_client_ptr->sendGoal(goal);
 }
 
 // Given a trashcan as a PoseStamped messge, returns the goal pose in front of it
@@ -446,8 +445,9 @@ int main(int argc, char** argv){
         {
           transition(state_before_pause, n);
         }
-        if (ros::Time::now() - timeofpause > ros::Duration(5))
+        if (ros::Time::now() - timeofpause > ros::Duration(10))
         {
+          ROS_ERROR("We've been paused for too long. Let's resume anyways!");
           transition(state_before_pause,n);
         }
     }

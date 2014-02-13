@@ -50,6 +50,7 @@ add_message_files(
   FILES
     ExplorationMsg.msg
     GarbageCan.msg
+    SoundMsg.msg
 )
 
 ## Generate services in the 'srv' folder
