@@ -10,11 +10,11 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   tf
+  roslib
 )
 
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
-
+find_package(Boost REQUIRED COMPONENTS system thread)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -110,6 +110,9 @@ include_directories(
 
 add_executable(global_planner_demo src/global_planner_demo.cpp)
 target_link_libraries(global_planner_demo ${catkin_LIBRARIES})
+
+add_executable(human_interface_node src/human_interface_node.cpp)
+target_link_libraries(human_interface_node ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes

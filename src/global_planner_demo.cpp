@@ -5,6 +5,7 @@
 #include <boost/thread/mutex.hpp>
 #include <global_planner/GarbageCan.h>
 #include "std_msgs/Int32.h"
+#include "std_msgs/String.h"
 
 // The global planner uses the actionlib to do the following:
 // Start in safe mode
@@ -47,6 +48,7 @@ boost::shared_ptr<MoveBaseClient> action_client_ptr;
 // April tag subscriber
 ros::Subscriber sub;
 ros::Publisher cmd_pub;
+ros::Publisher sound_pub;
 
 // State Machine for Fall Demo #2
 enum State {
@@ -60,14 +62,15 @@ enum State {
   DUMP_TRASH = 7,
   END = 8,
   PAUSE = 99,
-  RESUME = 100
+  RESUME = 100,
+  START = 999,
 };
-State currState = SAFE;
+State currState = START;
 State state_before_pause = SAFE;
 ros::Time timeofpause;
 
 // Command value read from topic, or on transition to SAFE
-int command_value = 0;
+int command_value = -1;
 
 bool given_start_state = false;
 
@@ -77,14 +80,23 @@ struct search_pose
   // x, y, rot
   double x, y, rz, rw;
 };
-search_pose search_poses[] = { {1, -1, 0, 1},
-                               {1.6, 1, 1, 0},
+search_pose search_poses[] = { {1, -0.8, 0, 1},
+                               {1.45, 1.0, 1, 0},
                                {-2, .85, -.73, .68},
-                               {-2, -1, 0, 1},
+                               {-1.8, -0.8, 0, 1},
                                {0, -1, 0.67, 0.72}
                              };
 // End position
 search_pose end_pose = {0, 0, 0, 1};
+
+void send_sound(std::string str)
+{
+  std_msgs::String s;
+  s.data = str;
+  //ROS_INFO_STREAM("Sending sound: "<< str);
+  sound_pub.publish(s);
+  ros::spinOnce();
+}
 
 // Sets given goal to given x,y and rotation quat rz,rw
 void setGoalPoseRaw(double x, double y, double rz, double rw, 
@@ -99,12 +111,18 @@ void setGoalPose(const search_pose &s,
   setGoalPoseRaw(s.x, s.y, s.rz, s.rw, goal);
 }
 
+void pauseRobot()
+{
+  move_base_msgs::MoveBaseGoal goal;
+  //action_client_ptr->sendGoal(goal);
+}
+
 // Given a trashcan as a PoseStamped messge, returns the goal pose in front of it
 void getGoalPoseFromTrashcan(const geometry_msgs::PoseStamped& msg,
                              move_base_msgs::MoveBaseGoal &goal) {
   double theta = 2 * acos(msg.pose.orientation.w);
-  setGoalPoseRaw(msg.pose.position.x + 0.35*cos(theta),
-                 msg.pose.position.y + 0.35*sin(theta),
+  setGoalPoseRaw(msg.pose.position.x + 0.5*cos(theta),
+                 msg.pose.position.y + 0.5*sin(theta),
                  msg.pose.orientation.z,
                  msg.pose.orientation.w,
                  goal);
@@ -261,6 +279,14 @@ int main(int argc, char** argv){
   // Publisher to send current state to the rest of the world when transition happens
   cmd_pub = n.advertise<std_msgs::Int32>("cmd_state", 10);
 
+  // Publisher to send current state to the rest of the world when transition happens
+  sound_pub = n.advertise<std_msgs::String>("play_sound", 10);
+  ros::spinOnce();
+
+  ROS_INFO_STREAM("Sending test sound");
+  sleep(1);
+  send_sound("beep.wav");
+
   action_client_ptr.reset( new MoveBaseClient("move_base", true) );
 
   // Create Rate Object for sleeping
@@ -286,28 +312,34 @@ int main(int argc, char** argv){
 
     // State machine command override from safe to chosen state
     switch(currState) {
+      case START:
+        if (command_value > 0 && command_value < 6)
+        {
+          given_start_state = true;
+          for (int i=0; i<5; i++)
+          {
+            send_sound("beep.wav");
+            sleep(1.5);
+          }
+          State s = static_cast<State>(command_value);
+          transition(s, n);
+        }
+        break;
       case SAFE:
         switch (command_value) {
-          case 1:
-          given_start_state = true;
-          transition(SEARCH_A, n);
+          State s;
+          case SEARCH_A:
+          case SEARCH_B:
+          case SEARCH_C:
+          case SEARCH_D:
+          case SEARCH_E:
+          s = static_cast<State>(command_value);
+          transition(s, n);
           break;
-          case 2:
-          transition(SEARCH_B, n);
-          break;
-          case 3:
-          transition(SEARCH_C, n);
-          break;
-          case 4:
-          transition(SEARCH_D, n);
-          break;
-          case 5:
-          transition(SEARCH_E, n);
-          break;
-          case 6:
+          case APPROACH_TRASH:
           transition(APPROACH_TRASH, n);
           break;
-          case 7:
+          case DUMP_TRASH:
           transition(DUMP_TRASH, n);
           break;
           case 8:
@@ -328,6 +360,7 @@ int main(int argc, char** argv){
           transition(PAUSE, n);
         if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
             command_value == 2) {
+          send_sound("beep.wav");
           transition(SEARCH_B, n);
         }
         break;
@@ -338,6 +371,8 @@ int main(int argc, char** argv){
           transition(PAUSE, n);
         if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
             command_value == 3) {
+
+          send_sound("beep.wav");
           transition(SEARCH_C, n);
         }
         break;
@@ -348,6 +383,7 @@ int main(int argc, char** argv){
           transition(PAUSE, n);
         if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
             command_value == 4) {
+          send_sound("beep.wav");
           transition(SEARCH_D, n);
         }
         break;
@@ -358,6 +394,7 @@ int main(int argc, char** argv){
           transition(PAUSE, n);
         if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
             command_value == 5) {
+          send_sound("beep.wav");
           transition(SEARCH_E, n);
         }
         break;
@@ -368,6 +405,7 @@ int main(int argc, char** argv){
           transition(PAUSE, n);
         if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
             command_value == 6) {
+          send_sound("beep.wav");
           transition(DUMP_TRASH, n);
         }
         break;
@@ -378,6 +416,7 @@ int main(int argc, char** argv){
           transition(PAUSE, n);
         if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
             command_value == 7) {
+          send_sound("seen_goal.wav");
           transition(DUMP_TRASH, n);
         }
         break;
@@ -389,18 +428,23 @@ int main(int argc, char** argv){
           transition(PAUSE, n);
         if (action_client_ptr->getState() == actionlib::SimpleClientGoalState::SUCCEEDED ||
             command_value == 8) {
+          send_sound("beep.wav");
           transition(END, n);
         }
         break;
 
       case END:
         ROS_INFO_THROTTLE(2,"command_value = %d, Status : %s", command_value, action_client_ptr->getState().toString().c_str());
+        send_sound("seen_goal.wav");
+        ros::spinOnce();
+        sleep(1);
+        exit(1);
         break;
 
       case PAUSE:
         if (command_value == RESUME)
         {
-          transition(state_before_pause,n);
+          transition(state_before_pause, n);
         }
         if (ros::Time::now() - timeofpause > ros::Duration(5))
         {
@@ -409,6 +453,7 @@ int main(int argc, char** argv){
     }
     if (given_start_state && action_client_ptr->getState() == actionlib::SimpleClientGoalState::ABORTED) {
       transition(SAFE, n);
+      send_sound("crash.wav");
     }
 
     // Update callbacks after the fact, for next loop iteration.
