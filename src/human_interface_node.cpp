@@ -1,7 +1,7 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 #include <boost/thread.hpp>
-#include "global_planner/SoundMsg.h"
+#include "global_planner_fall/SoundMsg.h"
 #include "string.h"
 
 class SoundManager
@@ -24,7 +24,7 @@ public:
         try
         {
             std::string path_to_sound = std::string("aplay -q ");
-            path_to_sound += ros::package::getPath("global_planner");
+            path_to_sound += ros::package::getPath("global_planner_fall");
             path_to_sound += std::string("/resources/sounds/");
             path_to_sound += str;
 
@@ -71,7 +71,7 @@ public:
 
 SoundManager sound_manager;
 
-void sound_callback(const global_planner::SoundMsg::ConstPtr& msg) {
+void sound_callback(const global_planner_fall::SoundMsg::ConstPtr& msg) {
     std::string str = msg->filename;
     int numTimes = msg->num_times;
     std::string text_output = msg->text_output;

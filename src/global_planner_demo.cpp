@@ -3,8 +3,8 @@
 #include <actionlib/client/simple_action_client.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <boost/thread/mutex.hpp>
-#include <global_planner/GarbageCan.h>
-#include <global_planner/SoundMsg.h>
+#include <global_planner_fall/GarbageCan.h>
+#include <global_planner_fall/SoundMsg.h>
 #include "std_msgs/Int32.h"
 #include "std_msgs/String.h"
 
@@ -17,14 +17,14 @@
 //   Transition to search state
 //  if goto state command:
 //   Transition to given state
-// 
+//
 // In search state
 //  travel to poses A,B,etc... on known map
 //  If a trashcan is found at any time:
 //   Transition to approach_trash state
 //  else if hit final search state:
 //   Transition to end state
-//  
+//
 // In approach_trash state
 //  travel to infront of trashcan
 //  if reach trash pose:
@@ -92,7 +92,7 @@ search_pose end_pose = {0, 0, 0, 1};
 
 void send_sound_num(std::string str, int num_times)
 {
-  global_planner::SoundMsg s;
+  global_planner_fall::SoundMsg s;
   s.filename = str;
   s.num_times = num_times;
   s.text_output = std::string();
@@ -107,14 +107,14 @@ void send_sound(std::string str)
 
 
 // Sets given goal to given x,y and rotation quat rz,rw
-void setGoalPoseRaw(double x, double y, double rz, double rw, 
+void setGoalPoseRaw(double x, double y, double rz, double rw,
                  move_base_msgs::MoveBaseGoal &goal) {
   goal.target_pose.pose.position.x = x;
   goal.target_pose.pose.position.y = y;
   goal.target_pose.pose.orientation.z = rz;
-  goal.target_pose.pose.orientation.w = rw;  
+  goal.target_pose.pose.orientation.w = rw;
 }
-void setGoalPose(const search_pose &s, 
+void setGoalPose(const search_pose &s,
                  move_base_msgs::MoveBaseGoal &goal) {
   setGoalPoseRaw(s.x, s.y, s.rz, s.rw, goal);
 }
@@ -135,7 +135,7 @@ void getGoalPoseFromTrashcan(const geometry_msgs::PoseStamped& msg,
 bool found_trashcan = false;
 
 // Callback for new april tags
-void trashcanTagSearcherCallback(const global_planner::GarbageCan::ConstPtr& msg) {
+void trashcanTagSearcherCallback(const global_planner_fall::GarbageCan::ConstPtr& msg) {
   // ROS_INFO("April Tag Callback!");
 
   geometry_msgs::PoseStamped pose = msg->pose;
@@ -149,13 +149,13 @@ void trashcanTagSearcherCallback(const global_planner::GarbageCan::ConstPtr& msg
     found_trashcan = true;
 
     move_base_msgs::MoveBaseGoal goal;
-    
+
     // Set goal position to in front of april tag
     getGoalPoseFromTrashcan(pose, goal);
 
     // http://mirror.umd.edu/roswiki/doc/diamondback/api/actionlib/html/classactionlib_1_1simple__action__client_1_1SimpleActionClient.html#a6bdebdd9f43a470ecd361d2c8b743188
-    // If a previous goal is already active when this is called. 
-    // We simply forget about that goal and start tracking the new goal. 
+    // If a previous goal is already active when this is called.
+    // We simply forget about that goal and start tracking the new goal.
     // No cancel requests are made.
     ROS_INFO("TRASH GOAL SENT!");
     action_client_ptr->sendGoal(goal);
@@ -256,7 +256,7 @@ void transition(State state, ros::NodeHandle &n) {
       setGoalPose(search_poses[chosen_search_pose], goal);
       goal.target_pose.header.frame_id = "map";
       goal.target_pose.header.stamp = ros::Time::now();
-      
+
       // Send goal to action client
       action_client_ptr->sendGoal(goal);
       ROS_INFO("GOAL SENT");
@@ -283,7 +283,7 @@ int main(int argc, char** argv){
   cmd_pub = n.advertise<std_msgs::Int32>("cmd_state", 10);
 
   // Publisher to send current state to the rest of the world when transition happens
-  sound_pub = n.advertise<global_planner::SoundMsg>("play_sound", 10);
+  sound_pub = n.advertise<global_planner_fall::SoundMsg>("play_sound", 10);
   ros::spinOnce();
 
   ROS_INFO_STREAM("Sending test sound");
@@ -300,7 +300,7 @@ int main(int argc, char** argv){
     ROS_INFO("Waiting for the move_base action server to come up");
   }
 
-  
+
   ROS_INFO("Starting global planner");
 
   while(ros::ok()){
@@ -356,7 +356,7 @@ int main(int argc, char** argv){
         }
         break;
 
-      
+
       case SEARCH_A:
         ROS_INFO_THROTTLE(2,"command_value = %d, Status : %s", command_value, action_client_ptr->getState().toString().c_str());
         if (command_value == PAUSE)
